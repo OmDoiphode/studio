@@ -100,7 +100,7 @@ export default function ClassPage() {
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [attendanceResult, setAttendanceResult] = useState<AttendanceResult>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const studentForm = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
@@ -384,21 +384,22 @@ export default function ClassPage() {
                 </div>
                 {classPhoto && (
                   <div className="space-y-4">
-                     <div ref={imageContainerRef} className="relative rounded-md border p-2 bg-muted/20">
-                      <Image
-                        src={classPhoto}
-                        alt="Class photo"
-                        width={800}
-                        height={600}
-                        className="rounded-md object-contain max-h-[400px] w-full"
-                      />
-                       {attendanceResult && imageContainerRef.current && (
+                    <div className="relative flex justify-center items-center bg-muted/20 rounded-md border p-2 min-h-[200px]">
+                      <div className="relative inline-block">
+                        <Image
+                          ref={imageRef}
+                          src={classPhoto}
+                          alt="Class photo"
+                          width={800}
+                          height={600}
+                          className="rounded-md object-contain max-h-[400px] w-full"
+                          priority
+                        />
+                        {attendanceResult && imageRef.current && (
                           <TooltipProvider>
                             {attendanceResult.recognitionOutput.presentStudents.map(studentRec => {
                               const studentData = students.find(s => s.rollNumber === studentRec.rollNumber);
                               const { x, y, width, height } = studentRec.box;
-                              const containerWidth = imageContainerRef.current!.clientWidth;
-                              const containerHeight = imageContainerRef.current!.clientHeight;
                               
                               return (
                                 <Tooltip key={studentRec.rollNumber}>
@@ -421,6 +422,7 @@ export default function ClassPage() {
                             })}
                           </TooltipProvider>
                         )}
+                      </div>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4">
