@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const FaceDetectionInputSchema = z.object({
+const FaceDetectionInputSchema = z.object({
   photoDataUri: z
     .string()
     .describe(
@@ -20,7 +20,7 @@ export const FaceDetectionInputSchema = z.object({
 });
 export type FaceDetectionInput = z.infer<typeof FaceDetectionInputSchema>;
 
-export const FaceDetectionOutputSchema = z.object({
+const FaceDetectionOutputSchema = z.object({
   faceCount: z.number().describe('The number of human faces detected in the photo.'),
 });
 export type FaceDetectionOutput = z.infer<typeof FaceDetectionOutputSchema>;
