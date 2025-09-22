@@ -21,4 +21,5 @@ export interface StudentData {
   name: string;
   rollNumber: string;
   attendanceHistory: string[]; // dates as 'YYYY-MM-DD'
+  profilePhotoUrl?: string; // Data URI of the student's profile photo
 }
