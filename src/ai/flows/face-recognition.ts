@@ -61,7 +61,7 @@ Your process:
 1.  Analyze the main classroom photograph to detect all visible human faces.
 2.  For each detected face, compare it against all the student profile photos provided.
 3.  If a face in the classroom photo is a confident match for a student's profile photo, add that student to the 'presentStudents' list.
-4.  For each matched student, you MUST provide the bounding box of their face in the classroom photo. The coordinates (x, y) and dimensions (width, height) must be fractional values between 0 and 1, relative to the image size.
+4.  For each matched student, you MUST provide the bounding box of their face in the classroom photo. The coordinates (x, y) and dimensions (width, height) must be fractional values between 0 and 1, relative to the image size. The top-left corner of the box should be at (x, y).
 5.  A student should only be marked as present if their face is clearly visible and identifiable in the classroom photo.
 6.  Return an array of the students you have identified as present, including their roll number and bounding box.
 

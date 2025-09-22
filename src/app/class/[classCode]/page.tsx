@@ -384,18 +384,16 @@ export default function ClassPage() {
                 </div>
                 {classPhoto && (
                   <div className="space-y-4">
-                    <div className="relative flex justify-center items-center bg-muted/20 rounded-md border p-2 min-h-[200px]">
-                      <div className="relative inline-block">
-                        <Image
-                          ref={imageRef}
-                          src={classPhoto}
-                          alt="Class photo"
-                          width={800}
-                          height={600}
-                          className="rounded-md object-contain max-h-[400px] w-full"
-                          priority
-                        />
-                        {attendanceResult && imageRef.current && (
+                     <div className="relative w-full max-w-2xl mx-auto">
+                      <Image
+                        ref={imageRef}
+                        src={classPhoto}
+                        alt="Class photo"
+                        width={800}
+                        height={600}
+                        className="rounded-md w-full h-auto"
+                      />
+                       {attendanceResult && imageRef.current && (
                           <TooltipProvider>
                             {attendanceResult.recognitionOutput.presentStudents.map(studentRec => {
                               const studentData = students.find(s => s.rollNumber === studentRec.rollNumber);
@@ -422,7 +420,6 @@ export default function ClassPage() {
                             })}
                           </TooltipProvider>
                         )}
-                      </div>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4">
