@@ -67,7 +67,6 @@ import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { DateRange } from 'react-day-picker';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const studentFormSchema = z.object({
@@ -393,33 +392,6 @@ export default function ClassPage() {
                         height={600}
                         className="rounded-md w-full h-auto"
                       />
-                       {attendanceResult && imageRef.current && (
-                          <TooltipProvider>
-                            {attendanceResult.recognitionOutput.presentStudents.map(studentRec => {
-                              const studentData = students.find(s => s.rollNumber === studentRec.rollNumber);
-                              const { x, y, width, height } = studentRec.box;
-                              
-                              return (
-                                <Tooltip key={studentRec.rollNumber}>
-                                  <TooltipTrigger asChild>
-                                    <div
-                                      className="absolute border-2 border-primary bg-primary/20"
-                                      style={{
-                                        left: `${x * 100}%`,
-                                        top: `${y * 100}%`,
-                                        width: `${width * 100}%`,
-                                        height: `${height * 100}%`,
-                                      }}
-                                    />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{studentData?.name || `Roll No: ${studentRec.rollNumber}`}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              );
-                            })}
-                          </TooltipProvider>
-                        )}
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4">
