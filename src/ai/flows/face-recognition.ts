@@ -34,11 +34,10 @@ const RecognizedStudentSchema = z.object({
         y: z.number().describe('The y-coordinate of the top-left corner of the bounding box, as a fraction of the image height.'),
         width: z.number().describe('The width of the bounding box, as a fraction of the image width.'),
         height: z.number().describe('The height of the bounding box, as a fraction of the image height.'),
-    }).describe('The bounding box of the detected face. The top-left corner of the box should be at (x, y).')
+    }).describe('The bounding box of the detected face.')
 });
 
 const FaceRecognitionOutputSchema = z.object({
-  totalFacesDetected: z.number().describe('The total number of human faces detected in the classroom photo.'),
   presentStudents: z.array(RecognizedStudentSchema).describe('An array of students identified as present, with their roll number and face bounding box.'),
 });
 export type FaceRecognitionOutput = z.infer<typeof FaceRecognitionOutputSchema>;
@@ -59,12 +58,12 @@ You will be given:
 2.  A list of student profiles, each with a roll number and a reference profile photo.
 
 Your process:
-1.  Analyze the main classroom photograph to detect all visible human faces. The total count of detected faces should be stored in the 'totalFacesDetected' field.
+1.  Analyze the main classroom photograph to detect all visible human faces.
 2.  For each detected face, compare it against all the student profile photos provided.
 3.  If a face in the classroom photo is a confident match for a student's profile photo, add that student to the 'presentStudents' list.
-4.  For each matched student, you MUST provide the bounding box of their face in the classroom photo. The coordinates (x, y) and dimensions (width, height) must be fractional values between 0 and 1, relative to the image size. The top-left corner of the box should be at (x, y).
+4.  For each matched student, you MUST provide the bounding box of their face in the classroom photo. The coordinates (x, y) and dimensions (width, height) must be fractional values between 0 and 1, relative to the image size.
 5.  A student should only be marked as present if their face is clearly visible and identifiable in the classroom photo.
-6.  Return the total face count and an array of the students you have identified as present.
+6.  Return an array of the students you have identified as present.
 
 Classroom Photo:
 {{media url=classPhotoDataUri}}
@@ -89,7 +88,7 @@ const faceRecognitionFlow = ai.defineFlow(
     const validStudentProfiles = input.studentProfiles.filter(p => p.profilePhotoUrl && p.profilePhotoUrl.startsWith('data:image'));
 
     if (validStudentProfiles.length === 0) {
-        return { totalFacesDetected: 0, presentStudents: [] };
+        return { presentStudents: [] };
     }
 
     const { output } = await prompt({
@@ -99,7 +98,7 @@ const faceRecognitionFlow = ai.defineFlow(
     
     // Ensure output is not null, and presentStudents is an array.
     if (!output || !Array.isArray(output.presentStudents)) {
-        return { totalFacesDetected: output?.totalFacesDetected || 0, presentStudents: [] };
+        return { presentStudents: [] };
     }
 
     return output;

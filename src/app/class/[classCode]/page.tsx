@@ -67,6 +67,7 @@ import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { DateRange } from 'react-day-picker';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const studentFormSchema = z.object({
@@ -177,6 +178,7 @@ export default function ClassPage() {
       const presentRollNumbers = result.presentStudents.map(s => s.rollNumber);
       const presentStudents = students.filter(s => presentRollNumbers.includes(s.rollNumber));
       const absentStudents = students.filter(s => !presentRollNumbers.includes(s.rollNumber));
+      
       setAttendanceResult({ present: presentStudents, absent: absentStudents, recognitionOutput: result });
 
       const formattedDate = format(attendanceDate, 'yyyy-MM-dd');
@@ -204,26 +206,6 @@ export default function ClassPage() {
     }
   };
   
-  const downloadPresentCSV = useCallback(() => {
-    if (!attendanceResult || attendanceResult.present.length === 0) return;
-
-    let csvContent = "data:text/csv;charset=utf-8,Roll Number,Name\n";
-
-    attendanceResult.present.forEach(student => {
-        const row = [student.rollNumber, student.name];
-        csvContent += row.join(',') + "\n";
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `present_${classData?.classCode}_${format(attendanceDate, 'yyyy-MM-dd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [attendanceResult, classData, attendanceDate]);
-
-
   const handleGenerateSummary = async () => {
     if (!classData || !summaryDateRange?.from || !summaryDateRange?.to) return;
     setIsGeneratingSummary(true);
@@ -410,11 +392,45 @@ export default function ClassPage() {
                         alt="Class photo"
                         width={800}
                         height={600}
-                        className="rounded-md w-full h-auto"
+                        className="rounded-md object-contain"
                         onLoad={() => {
                           // This is a good place to recalculate box positions if needed
                         }}
                       />
+                       {attendanceResult && imageRef.current && (
+                        <TooltipProvider>
+                          {attendanceResult.recognitionOutput.presentStudents.map((student, index) => {
+                             const studentDetails = students.find(s => s.rollNumber === student.rollNumber);
+                             const { naturalWidth, naturalHeight, offsetWidth, offsetHeight } = imageRef.current!;
+                             const widthScale = offsetWidth / naturalWidth;
+                             const heightScale = offsetHeight / naturalHeight;
+                             
+                             const top = student.box.y * naturalHeight * heightScale;
+                             const left = student.box.x * naturalWidth * widthScale;
+                             const width = student.box.width * naturalWidth * widthScale;
+                             const height = student.box.height * naturalHeight * heightScale;
+
+                            return (
+                                <Tooltip key={index}>
+                                  <TooltipTrigger asChild>
+                                      <div
+                                        className="absolute border-2 border-primary rounded-md"
+                                        style={{
+                                          top: `${top}px`,
+                                          left: `${left}px`,
+                                          width: `${width}px`,
+                                          height: `${height}px`,
+                                        }}
+                                      />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{studentDetails?.name || student.rollNumber}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                            );
+                          })}
+                        </TooltipProvider>
+                      )}
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4">
@@ -432,21 +448,10 @@ export default function ClassPage() {
                  {attendanceResult && (
                     <Card>
                         <CardHeader>
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <CardTitle>Attendance Result for {format(attendanceDate, 'PPP')}</CardTitle>
-                                    <CardDescription>
-                                        Total faces detected: {attendanceResult.recognitionOutput.totalFacesDetected}.{' '}
-                                        {attendanceResult.present.length} student(s) marked present, {attendanceResult.absent.length} absent.
-                                    </CardDescription>
-                                </div>
-                                {attendanceResult.present.length > 0 && (
-                                    <Button variant="outline" size="sm" onClick={downloadPresentCSV}>
-                                        <Download className="mr-2 h-4 w-4"/>
-                                        Download Present List
-                                    </Button>
-                                )}
-                            </div>
+                            <CardTitle>Attendance Result for {format(attendanceDate, 'PPP')}</CardTitle>
+                            <CardDescription>
+                                {attendanceResult.present.length} student(s) marked present, {attendanceResult.absent.length} absent.
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-6">
                             <div>
