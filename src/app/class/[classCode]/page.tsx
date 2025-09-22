@@ -101,6 +101,7 @@ export default function ClassPage() {
   const [attendanceResult, setAttendanceResult] = useState<AttendanceResult>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const studentForm = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
@@ -286,6 +287,25 @@ export default function ClassPage() {
     document.body.removeChild(link);
   }, [students, classData]);
 
+  const downloadPresentCSV = useCallback(() => {
+    if (!attendanceResult || attendanceResult.present.length === 0) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,Roll Number,Name\n";
+
+    attendanceResult.present.forEach(student => {
+        const row = [student.rollNumber, student.name];
+        csvContent += row.join(',') + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${classData?.classCode}_present_${format(attendanceDate, 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [attendanceResult, classData, attendanceDate]);
+
 
   if (loading || authLoading) {
     return <div className="flex items-center justify-center h-screen"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
@@ -385,7 +405,7 @@ export default function ClassPage() {
                 </div>
                 {classPhoto && (
                   <div className="space-y-4">
-                    <div className="relative w-full max-w-2xl mx-auto">
+                    <div ref={imageContainerRef} className="relative w-full max-w-2xl mx-auto flex justify-center items-center">
                       <Image
                         ref={imageRef}
                         src={classPhoto}
@@ -397,39 +417,42 @@ export default function ClassPage() {
                           // This is a good place to recalculate box positions if needed
                         }}
                       />
-                       {attendanceResult && imageRef.current && (
-                        <TooltipProvider>
-                          {attendanceResult.recognitionOutput.presentStudents.map((student, index) => {
-                             const studentDetails = students.find(s => s.rollNumber === student.rollNumber);
-                             const { naturalWidth, naturalHeight, offsetWidth, offsetHeight } = imageRef.current!;
-                             const widthScale = offsetWidth / naturalWidth;
-                             const heightScale = offsetHeight / naturalHeight;
-                             
-                             const top = student.box.y * naturalHeight * heightScale;
-                             const left = student.box.x * naturalWidth * widthScale;
-                             const width = student.box.width * naturalWidth * widthScale;
-                             const height = student.box.height * naturalHeight * heightScale;
+                       {attendanceResult && imageRef.current && imageContainerRef.current && (
+                        <div className="absolute top-0 left-0 w-full h-full" style={{
+                            width: imageRef.current.offsetWidth,
+                            height: imageRef.current.offsetHeight,
+                            top: imageRef.current.offsetTop,
+                            left: imageRef.current.offsetLeft,
+                        }}>
+                          <TooltipProvider>
+                            {attendanceResult.recognitionOutput.presentStudents.map((student, index) => {
+                                const studentDetails = students.find(s => s.rollNumber === student.rollNumber);
+                                const top = student.box.y * 100;
+                                const left = student.box.x * 100;
+                                const width = student.box.width * 100;
+                                const height = student.box.height * 100;
 
-                            return (
-                                <Tooltip key={index}>
-                                  <TooltipTrigger asChild>
-                                      <div
-                                        className="absolute border-2 border-primary rounded-md"
-                                        style={{
-                                          top: `${top}px`,
-                                          left: `${left}px`,
-                                          width: `${width}px`,
-                                          height: `${height}px`,
-                                        }}
-                                      />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{studentDetails?.name || student.rollNumber}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                            );
-                          })}
-                        </TooltipProvider>
+                              return (
+                                  <Tooltip key={index}>
+                                    <TooltipTrigger asChild>
+                                        <div
+                                          className="absolute border-2 border-primary rounded-md"
+                                          style={{
+                                            top: `${top}%`,
+                                            left: `${left}%`,
+                                            width: `${width}%`,
+                                            height: `${height}%`,
+                                          }}
+                                        />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{studentDetails?.name || student.rollNumber}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                              );
+                            })}
+                          </TooltipProvider>
+                        </div>
                       )}
                     </div>
                     
@@ -448,10 +471,17 @@ export default function ClassPage() {
                  {attendanceResult && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>Attendance Result for {format(attendanceDate, 'PPP')}</CardTitle>
-                            <CardDescription>
-                                {attendanceResult.present.length} student(s) marked present, {attendanceResult.absent.length} absent.
-                            </CardDescription>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <CardTitle>Attendance Result for {format(attendanceDate, 'PPP')}</CardTitle>
+                                    <CardDescription>
+                                        Faces Detected: {attendanceResult.recognitionOutput.totalFacesDetected} &bull; Present: {attendanceResult.present.length} &bull; Absent: {attendanceResult.absent.length}
+                                    </CardDescription>
+                                </div>
+                                <Button onClick={downloadPresentCSV} variant="outline" size="sm" disabled={attendanceResult.present.length === 0}>
+                                    <Download className="mr-2 h-4 w-4"/> Download Present List
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-6">
                             <div>
