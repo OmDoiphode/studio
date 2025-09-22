@@ -418,7 +418,7 @@ export default function ClassPage() {
                                         </div>
                                     </div>
                                 ))}
-                                {attendanceResult.present.length === 0 && <p className="text-sm text-muted-foreground">No students were recognized.</p>}
+                                {attendanceResult.present.length === 0 && <p className="text-sm text-muted-foreground">No students were recognized as present.</p>}
                                 </div>
                             </div>
                             <div>
@@ -621,3 +621,5 @@ export default function ClassPage() {
     </div>
   );
 }
+
+    

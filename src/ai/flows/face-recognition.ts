@@ -83,6 +83,14 @@ const faceRecognitionFlow = ai.defineFlow(
         ...input,
         studentProfiles: validStudentProfiles,
     });
-    return output!;
+    
+    // Ensure output is not null, and presentRollNumbers is an array.
+    if (!output || !Array.isArray(output.presentRollNumbers)) {
+        return { presentRollNumbers: [] };
+    }
+
+    return output;
   }
 );
+
+    
