@@ -13,11 +13,10 @@ import {
   arrayUnion,
   addDoc,
 } from 'firebase/firestore';
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { ClassData, StudentData, UserProfile } from '@/lib/types';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   BookCopy,
   Calendar as CalendarIcon,
@@ -28,12 +27,13 @@ import {
   Users,
   Bot,
   ListChecks,
+  Upload,
+  Camera,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -59,6 +59,10 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { detectFacesInPhoto } from '@/ai/flows/face-detection';
+import Image from 'next/image';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+
 
 const studentFormSchema = z.object({
   name: z.string().min(2, 'Name is required.'),
@@ -74,13 +78,17 @@ export default function ClassPage() {
   const [students, setStudents] = useState<StudentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [attendanceDate, setAttendanceDate] = useState<Date>(new Date());
-  const [checkedStudents, setCheckedStudents] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summary, setSummary] = useState('');
   const [summaryDateRange, setSummaryDateRange] = useState<{from: Date, to: Date}>({ from: subDays(new Date(), 7), to: new Date() });
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   
+  const [classPhoto, setClassPhoto] = useState<string | null>(null);
+  const [detectedFaceCount, setDetectedFaceCount] = useState<number | null>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const studentForm = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
     defaultValues: { name: '', rollNumber: '' },
@@ -121,33 +129,33 @@ export default function ClassPage() {
     return userProfile.uid === classData.facultyId;
   }, [userProfile, classData]);
 
-  const handleSaveAttendance = async () => {
-    if (!classData) return;
-    setIsSaving(true);
-    const dateStr = format(attendanceDate, 'yyyy-MM-dd');
-    const promises = Object.entries(checkedStudents)
-      .filter(([, isChecked]) => isChecked)
-      .map(([studentId]) => {
-        const student = students.find(s => s.id === studentId);
-        if (student && !student.attendanceHistory.includes(dateStr)) {
-          const studentDocRef = doc(db, 'classes', classData.id, 'students', studentId);
-          return updateDoc(studentDocRef, {
-            attendanceHistory: arrayUnion(dateStr),
-          });
-        }
-        return Promise.resolve();
-      });
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (loadEvent) => {
+        setClassPhoto(loadEvent.target?.result as string);
+        setDetectedFaceCount(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
+  const handleDetectFaces = async () => {
+    if (!classPhoto) return;
+    setIsDetecting(true);
+    setDetectedFaceCount(null);
     try {
-      await Promise.all(promises);
-      toast({
-        title: 'Attendance Saved',
-        description: `Attendance for ${format(attendanceDate, 'PPP')} has been updated.`,
+      const result = await detectFacesInPhoto({ photoDataUri: classPhoto });
+      setDetectedFaceCount(result.faceCount);
+       toast({
+        title: 'Detection Complete',
+        description: `${result.faceCount} face(s) were detected in the photo. The next step is to match these faces to student profiles.`,
       });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error Saving Attendance', description: error.message });
+      toast({ variant: 'destructive', title: 'Face Detection Failed', description: error.message });
     } finally {
-      setIsSaving(false);
+      setIsDetecting(false);
     }
   };
 
@@ -274,17 +282,10 @@ export default function ClassPage() {
         <TabsContent value="attendance">
           <Card>
             <CardHeader>
-              <CardTitle>Mark Attendance</CardTitle>
-              <CardDescription>Select the date and check the students who are present.</CardDescription>
+              <CardTitle>Mark Attendance with AI</CardTitle>
+              <CardDescription>Upload a photo of the class to detect faces and mark attendance.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Alert>
-                <Terminal className="h-4 w-4" />
-                <AlertTitle>Note on Face Recognition</AlertTitle>
-                <AlertDescription>
-                  Live face recognition is a complex feature requiring dedicated machine learning infrastructure. For this demo, please mark attendance manually.
-                </AlertDescription>
-              </Alert>
               <div className="flex items-center gap-4">
                 <Popover>
                   <PopoverTrigger asChild>
@@ -309,38 +310,61 @@ export default function ClassPage() {
                   </PopoverContent>
                 </Popover>
               </div>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]"></TableHead>
-                      <TableHead>Roll Number</TableHead>
-                      <TableHead>Name</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {students.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={!!checkedStudents[student.id]}
-                            onCheckedChange={(checked) =>
-                              setCheckedStudents((prev) => ({ ...prev, [student.id]: !!checked }))
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">{student.rollNumber}</TableCell>
-                        <TableCell>{student.name}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                 {students.length === 0 && <p className="text-center text-muted-foreground p-8">No students enrolled yet.</p>}
-              </div>
-              <Button onClick={handleSaveAttendance} disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Attendance
-              </Button>
+               <Card className="p-4 space-y-4">
+                <div className="flex flex-col items-center justify-center space-y-2 text-center border-2 border-dashed border-muted-foreground/30 rounded-lg p-8">
+                  <Upload className="h-10 w-10 text-muted-foreground" />
+                  <h3 className="text-lg font-medium">Upload a Class Photo</h3>
+                  <p className="text-sm text-muted-foreground">Select a clear, well-lit photo of the entire class.</p>
+                  <Button onClick={() => fileInputRef.current?.click()}>
+                    Choose File
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    accept="image/*"
+                  />
+                </div>
+                {classPhoto && (
+                  <div className="space-y-4">
+                     <div className="rounded-md border p-2 bg-muted/20">
+                      <Image
+                        src={classPhoto}
+                        alt="Class photo"
+                        width={800}
+                        height={600}
+                        className="rounded-md object-contain max-h-[400px] w-full"
+                      />
+                    </div>
+                    <Alert>
+                      <Camera className="h-4 w-4" />
+                      <AlertTitle>Face Recognition Coming Soon!</AlertTitle>
+                      <AlertDescription>
+                        The ability to match detected faces to your student roster is the next step. For now, the AI will only count the faces.
+                      </AlertDescription>
+                    </Alert>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <Button onClick={handleDetectFaces} disabled={isDetecting} className="w-full sm:w-auto">
+                        {isDetecting ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Bot className="mr-2 h-4 w-4" />
+                        )}
+                        Detect Faces
+                      </Button>
+                      {detectedFaceCount !== null && (
+                        <Card className="flex-1 bg-background p-4 flex items-center justify-center">
+                          <p className="text-lg font-semibold">
+                            Detected <span className="text-primary">{detectedFaceCount}</span> face(s)
+                          </p>
+                        </Card>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </Card>
+
             </CardContent>
           </Card>
         </TabsContent>
