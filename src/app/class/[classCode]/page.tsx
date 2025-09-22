@@ -62,6 +62,7 @@ import { Input } from '@/components/ui/input';
 import { detectFacesInPhoto } from '@/ai/flows/face-detection';
 import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { DateRange } from 'react-day-picker';
 
 
 const studentFormSchema = z.object({
@@ -81,7 +82,7 @@ export default function ClassPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summary, setSummary] = useState('');
-  const [summaryDateRange, setSummaryDateRange] = useState<{from: Date, to: Date}>({ from: subDays(new Date(), 7), to: new Date() });
+  const [summaryDateRange, setSummaryDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   
   const [classPhoto, setClassPhoto] = useState<string | null>(null);
@@ -128,6 +129,11 @@ export default function ClassPage() {
     if (!userProfile || !classData) return false;
     return userProfile.uid === classData.facultyId;
   }, [userProfile, classData]);
+  
+  const totalAttendanceRecords = useMemo(() => {
+    return students.reduce((acc, s) => acc + s.attendanceHistory.length, 0);
+  }, [students]);
+
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -160,7 +166,7 @@ export default function ClassPage() {
   };
 
   const handleGenerateSummary = async () => {
-    if (!classData) return;
+    if (!classData || !summaryDateRange?.from || !summaryDateRange?.to) return;
     setIsGeneratingSummary(true);
     setSummary('');
 
@@ -169,7 +175,7 @@ export default function ClassPage() {
         rollNumber: s.rollNumber,
         presentDates: s.attendanceHistory.filter(date => {
             const d = new Date(date);
-            return d >= summaryDateRange.from && d <= summaryDateRange.to;
+            return d >= (summaryDateRange.from as Date) && d <= (summaryDateRange.to as Date);
         })
     }));
 
@@ -345,7 +351,7 @@ export default function ClassPage() {
                       </AlertDescription>
                     </Alert>
                     <div className="flex flex-col sm:flex-row gap-4">
-                      <Button onClick={handleDetectFaces} disabled={isDetecting} className="w-full sm:w-auto">
+                      <Button onClick={handleDetectFaces} disabled={isDetecting || !classPhoto} className="w-full sm:w-auto">
                         {isDetecting ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
@@ -415,7 +421,7 @@ export default function ClassPage() {
                           <CardTitle>Attendance History</CardTitle>
                           <CardDescription>Export all attendance data to a CSV file.</CardDescription>
                       </div>
-                      <Button onClick={exportToCSV} variant="outline" size="sm">
+                      <Button onClick={exportToCSV} variant="outline" size="sm" disabled={totalAttendanceRecords === 0}>
                           <Download className="mr-2 h-4 w-4" /> Export
                       </Button>
                   </div>
@@ -439,7 +445,7 @@ export default function ClassPage() {
                         ))}
                       </TableBody>
                     </Table>
-                    {students.flatMap(s => s.attendanceHistory).length === 0 && <p className="text-center text-muted-foreground p-8">No attendance has been recorded yet.</p>}
+                    {totalAttendanceRecords === 0 && <p className="text-center text-muted-foreground p-8">No attendance has been recorded yet.</p>}
               </CardContent>
             </Card>
             <Card>
@@ -448,10 +454,43 @@ export default function ClassPage() {
                 <CardDescription>Generate an AI-powered summary of attendance trends.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
-                      <p className="text-sm text-muted-foreground">Date Range (coming soon)</p>
-                  </div>
-                  <Button onClick={handleGenerateSummary} disabled={isGeneratingSummary} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                   <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date"
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !summaryDateRange && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {summaryDateRange?.from ? (
+                          summaryDateRange.to ? (
+                            <>
+                              {format(summaryDateRange.from, "LLL dd, y")} -{" "}
+                              {format(summaryDateRange.to, "LLL dd, y")}
+                            </>
+                          ) : (
+                            format(summaryDateRange.from, "LLL dd, y")
+                          )
+                        ) : (
+                          <span>Pick a date range</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={summaryDateRange?.from}
+                        selected={summaryDateRange}
+                        onSelect={setSummaryDateRange}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button onClick={handleGenerateSummary} disabled={isGeneratingSummary || totalAttendanceRecords === 0} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
                       {isGeneratingSummary && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Generate Summary
                   </Button>
