@@ -203,6 +203,26 @@ export default function ClassPage() {
       setIsRecognizing(false);
     }
   };
+  
+  const downloadPresentCSV = useCallback(() => {
+    if (!attendanceResult || attendanceResult.present.length === 0) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,Roll Number,Name\n";
+
+    attendanceResult.present.forEach(student => {
+        const row = [student.rollNumber, student.name];
+        csvContent += row.join(',') + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `present_${classData?.classCode}_${format(attendanceDate, 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [attendanceResult, classData, attendanceDate]);
+
 
   const handleGenerateSummary = async () => {
     if (!classData || !summaryDateRange?.from || !summaryDateRange?.to) return;
@@ -383,7 +403,7 @@ export default function ClassPage() {
                 </div>
                 {classPhoto && (
                   <div className="space-y-4">
-                     <div className="relative w-full max-w-2xl mx-auto">
+                    <div className="relative w-full max-w-2xl mx-auto">
                       <Image
                         ref={imageRef}
                         src={classPhoto}
@@ -391,6 +411,9 @@ export default function ClassPage() {
                         width={800}
                         height={600}
                         className="rounded-md w-full h-auto"
+                        onLoad={() => {
+                          // This is a good place to recalculate box positions if needed
+                        }}
                       />
                     </div>
                     
@@ -409,10 +432,21 @@ export default function ClassPage() {
                  {attendanceResult && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>Attendance Result for {format(attendanceDate, 'PPP')}</CardTitle>
-                            <CardDescription>
-                                {attendanceResult.present.length} student(s) marked present. {attendanceResult.absent.length} student(s) marked absent.
-                            </CardDescription>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <CardTitle>Attendance Result for {format(attendanceDate, 'PPP')}</CardTitle>
+                                    <CardDescription>
+                                        Total faces detected: {attendanceResult.recognitionOutput.totalFacesDetected}.{' '}
+                                        {attendanceResult.present.length} student(s) marked present, {attendanceResult.absent.length} absent.
+                                    </CardDescription>
+                                </div>
+                                {attendanceResult.present.length > 0 && (
+                                    <Button variant="outline" size="sm" onClick={downloadPresentCSV}>
+                                        <Download className="mr-2 h-4 w-4"/>
+                                        Download Present List
+                                    </Button>
+                                )}
+                            </div>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-6">
                             <div>
