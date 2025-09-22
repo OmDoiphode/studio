@@ -26,8 +26,19 @@ const FaceRecognitionInputSchema = z.object({
 });
 export type FaceRecognitionInput = z.infer<typeof FaceRecognitionInputSchema>;
 
+
+const RecognizedStudentSchema = z.object({
+    rollNumber: z.string().describe('The roll number of the student identified.'),
+    box: z.object({
+        x: z.number().describe('The x-coordinate of the top-left corner of the bounding box, as a fraction of the image width.'),
+        y: z.number().describe('The y-coordinate of the top-left corner of the bounding box, as a fraction of the image height.'),
+        width: z.number().describe('The width of the bounding box, as a fraction of the image width.'),
+        height: z.number().describe('The height of the bounding box, as a fraction of the image height.'),
+    }).describe('The bounding box of the detected face.')
+});
+
 const FaceRecognitionOutputSchema = z.object({
-  presentRollNumbers: z.array(z.string()).describe('An array of roll numbers for students identified as present in the class photo.'),
+  presentStudents: z.array(RecognizedStudentSchema).describe('An array of students identified as present, with their roll number and face bounding box.'),
 });
 export type FaceRecognitionOutput = z.infer<typeof FaceRecognitionOutputSchema>;
 
@@ -40,7 +51,7 @@ const prompt = ai.definePrompt({
   name: 'faceRecognitionPrompt',
   input: { schema: FaceRecognitionInputSchema },
   output: { schema: FaceRecognitionOutputSchema },
-  prompt: `You are an AI expert in face recognition. Your task is to identify which students from a provided list are present in a classroom photograph.
+  prompt: `You are an AI expert in face recognition. Your task is to identify which students from a provided list are present in a classroom photograph and provide the bounding box for each recognized face.
 
 You will be given:
 1.  A main classroom photograph.
@@ -49,9 +60,10 @@ You will be given:
 Your process:
 1.  Analyze the main classroom photograph to detect all visible human faces.
 2.  For each detected face, compare it against all the student profile photos provided.
-3.  If a face in the classroom photo is a confident match for a student's profile photo, add that student's roll number to the 'presentRollNumbers' list.
-4.  A student should only be marked as present if their face is clearly visible and identifiable in the classroom photo.
-5.  Return an array of the roll numbers of all students you have identified as present.
+3.  If a face in the classroom photo is a confident match for a student's profile photo, add that student to the 'presentStudents' list.
+4.  For each matched student, you MUST provide the bounding box of their face in the classroom photo. The coordinates (x, y) and dimensions (width, height) must be fractional values between 0 and 1, relative to the image size.
+5.  A student should only be marked as present if their face is clearly visible and identifiable in the classroom photo.
+6.  Return an array of the students you have identified as present, including their roll number and bounding box.
 
 Classroom Photo:
 {{media url=classPhotoDataUri}}
@@ -76,7 +88,7 @@ const faceRecognitionFlow = ai.defineFlow(
     const validStudentProfiles = input.studentProfiles.filter(p => p.profilePhotoUrl && p.profilePhotoUrl.startsWith('data:image'));
 
     if (validStudentProfiles.length === 0) {
-        return { presentRollNumbers: [] };
+        return { presentStudents: [] };
     }
 
     const { output } = await prompt({
@@ -84,13 +96,11 @@ const faceRecognitionFlow = ai.defineFlow(
         studentProfiles: validStudentProfiles,
     });
     
-    // Ensure output is not null, and presentRollNumbers is an array.
-    if (!output || !Array.isArray(output.presentRollNumbers)) {
-        return { presentRollNumbers: [] };
+    // Ensure output is not null, and presentStudents is an array.
+    if (!output || !Array.isArray(output.presentStudents)) {
+        return { presentStudents: [] };
     }
 
     return output;
   }
 );
-
-    

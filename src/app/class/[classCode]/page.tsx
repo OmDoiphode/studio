@@ -62,17 +62,24 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { recognizeStudents } from '@/ai/flows/face-recognition';
+import { recognizeStudents, FaceRecognitionOutput } from '@/ai/flows/face-recognition';
 import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { DateRange } from 'react-day-picker';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const studentFormSchema = z.object({
   name: z.string().min(2, 'Name is required.'),
   rollNumber: z.string().min(1, 'Roll number is required.'),
 });
+
+type AttendanceResult = {
+  present: StudentData[];
+  absent: StudentData[];
+  recognitionOutput: FaceRecognitionOutput;
+} | null;
 
 export default function ClassPage() {
   const { classCode } = useParams();
@@ -91,8 +98,9 @@ export default function ClassPage() {
   
   const [classPhoto, setClassPhoto] = useState<string | null>(null);
   const [isRecognizing, setIsRecognizing] = useState(false);
-  const [attendanceResult, setAttendanceResult] = useState<{ present: StudentData[], absent: StudentData[] } | null>(null);
+  const [attendanceResult, setAttendanceResult] = useState<AttendanceResult>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const studentForm = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
@@ -167,9 +175,10 @@ export default function ClassPage() {
         studentProfiles,
       });
 
-      const presentStudents = students.filter(s => result.presentRollNumbers.includes(s.rollNumber));
-      const absentStudents = students.filter(s => !result.presentRollNumbers.includes(s.rollNumber));
-      setAttendanceResult({ present: presentStudents, absent: absentStudents });
+      const presentRollNumbers = result.presentStudents.map(s => s.rollNumber);
+      const presentStudents = students.filter(s => presentRollNumbers.includes(s.rollNumber));
+      const absentStudents = students.filter(s => !presentRollNumbers.includes(s.rollNumber));
+      setAttendanceResult({ present: presentStudents, absent: absentStudents, recognitionOutput: result });
 
       const formattedDate = format(attendanceDate, 'yyyy-MM-dd');
       const attendanceUpdatePromises = presentStudents.map(student => {
@@ -375,7 +384,7 @@ export default function ClassPage() {
                 </div>
                 {classPhoto && (
                   <div className="space-y-4">
-                     <div className="rounded-md border p-2 bg-muted/20">
+                     <div ref={imageContainerRef} className="relative rounded-md border p-2 bg-muted/20">
                       <Image
                         src={classPhoto}
                         alt="Class photo"
@@ -383,6 +392,35 @@ export default function ClassPage() {
                         height={600}
                         className="rounded-md object-contain max-h-[400px] w-full"
                       />
+                       {attendanceResult && imageContainerRef.current && (
+                          <TooltipProvider>
+                            {attendanceResult.recognitionOutput.presentStudents.map(studentRec => {
+                              const studentData = students.find(s => s.rollNumber === studentRec.rollNumber);
+                              const { x, y, width, height } = studentRec.box;
+                              const containerWidth = imageContainerRef.current!.clientWidth;
+                              const containerHeight = imageContainerRef.current!.clientHeight;
+                              
+                              return (
+                                <Tooltip key={studentRec.rollNumber}>
+                                  <TooltipTrigger asChild>
+                                    <div
+                                      className="absolute border-2 border-primary bg-primary/20"
+                                      style={{
+                                        left: `${x * 100}%`,
+                                        top: `${y * 100}%`,
+                                        width: `${width * 100}%`,
+                                        height: `${height * 100}%`,
+                                      }}
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{studentData?.name || `Roll No: ${studentRec.rollNumber}`}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                          </TooltipProvider>
+                        )}
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4">
@@ -621,5 +659,3 @@ export default function ClassPage() {
     </div>
   );
 }
-
-    
