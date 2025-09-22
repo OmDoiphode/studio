@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { Label } from '../ui/label';
 
 const enrollSchema = z.object({
   classCode: z.string().min(6, 'Class code must be at least 6 characters.'),
